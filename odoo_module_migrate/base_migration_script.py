@@ -207,8 +207,11 @@ class BaseMigrationScript(object):
         replaces = self._TEXT_REPLACES.get("*", {})
         replaces.update(self._TEXT_REPLACES.get(extension, {}))
         replaces.update(renamed_models.get("replaces"))
+        # if the field is a python file with _inherit = model_name or <field name="name">model.name</field>
+        # we try to replace the fields
+        model = self.get_model(absolute_file_path)
         replaces.update(removed_models.get("replaces"))
-
+        replaces.update(renamed_fields.get("replaces"))
         new_text = tools._replace_in_file(
             absolute_file_path, replaces, "Change file content of %s" % filename
         )
@@ -260,17 +263,29 @@ class BaseMigrationScript(object):
         For now this handler is simple but the idea would be to improve it
         with deeper analysis and direct replaces if it is possible and secure.
         For that analysis model_name could be used
+        It also will add to the replaces key of the returned dictionary a key value pair
+         to be used in _replace_in_file
         """
-        res = {}
+        res = {"warnings": {}, "replaces": {}}
+
         for model_name, old_field_name, new_field_name, more_info in removed_fields:
+            res["replaces"].update(
+                {
+                    old_field_name: new_field_name,
+                }
+            )
             msg = "On the model %s, the field %s was renamed to %s.%s" % (
                 model_name,
                 old_field_name,
                 new_field_name,
                 " %s" % more_info if more_info else "",
             )
-            res[r"""(['"]{0}['"]|\.{0}[\s,=])""".format(old_field_name)] = msg
-        return {"warnings": res}
+            res["warnings"].update(
+                {
+                    r"""(['"]{0}['"]|\.{0}[\s,=])""".format(old_field_name): msg,
+                }
+            )
+        return res
 
     def handle_deprecated_modules(self, manifest_path, deprecated_modules):
         current_manifest_text = tools._read_content(manifest_path)
@@ -456,3 +471,16 @@ class BaseMigrationScript(object):
                 )
         except BaseException:
             logger.error(traceback.format_exc())
+
+    def get_model(self, absolute_filepath):
+        model = ''
+        match = ''
+        with open(absolute_filepath, 'r') as file:
+            file_content = file.read()
+            if 'xml' in absolute_filepath:
+                match = re.search(r"<field name=\"model\">([a-zA-Z0-9_.]+)</field>", file_content)
+            elif 'py' in absolute_filepath:
+                match = re.search(r"_inherit\s*=\s*['\"]([^'\"]+)['\"]", file_content)
+            if match:
+                model = match.group(1)
+        return model
