@@ -207,14 +207,16 @@ class BaseMigrationScript(object):
         replaces = self._TEXT_REPLACES.get("*", {})
         replaces.update(self._TEXT_REPLACES.get(extension, {}))
         replaces.update(renamed_models.get("replaces"))
-        # if the field is a python file with _inherit = model_name or <field name="name">model.name</field>
-        # we try to replace the fields
-        model = self.get_model(absolute_file_path)
         replaces.update(removed_models.get("replaces"))
-        replaces.update(renamed_fields.get("replaces"))
-        new_text = tools._replace_in_file(
+        tools._replace_in_file(
             absolute_file_path, replaces, "Change file content of %s" % filename
         )
+        field_renames = renamed_fields.get("replaces")
+        # To be safe we only rename fields on files associated with the current replaces
+        if field_renames:
+            new_text = tools._replace_field_names(
+                absolute_file_path, field_renames, "Updated field names of %s" % filename
+            )
 
         # Display errors if the new content contains some obsolete
         # pattern
@@ -267,11 +269,14 @@ class BaseMigrationScript(object):
          to be used in _replace_in_file
         """
         res = {"warnings": {}, "replaces": {}}
-
+        res['replaces'] = {}
         for model_name, old_field_name, new_field_name, more_info in removed_fields:
+            # if model_name in res['replaces']:
+            #     res['replaces'][model_name].update({old_field_name: new_field_name,})
+            # else:
             res["replaces"].update(
                 {
-                    old_field_name: new_field_name,
+                    model_name: {old_field_name: new_field_name,}
                 }
             )
             msg = "On the model %s, the field %s was renamed to %s.%s" % (
@@ -471,16 +476,3 @@ class BaseMigrationScript(object):
                 )
         except BaseException:
             logger.error(traceback.format_exc())
-
-    def get_model(self, absolute_filepath):
-        model = ''
-        match = ''
-        with open(absolute_filepath, 'r') as file:
-            file_content = file.read()
-            if 'xml' in absolute_filepath:
-                match = re.search(r"<field name=\"model\">([a-zA-Z0-9_.]+)</field>", file_content)
-            elif 'py' in absolute_filepath:
-                match = re.search(r"_inherit\s*=\s*['\"]([^'\"]+)['\"]", file_content)
-            if match:
-                model = match.group(1)
-        return model

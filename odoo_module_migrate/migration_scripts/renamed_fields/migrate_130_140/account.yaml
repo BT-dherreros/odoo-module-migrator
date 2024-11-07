@@ -1,1 +1,6 @@
 - ['account.move', 'type', 'move_type', 'Search for the commit']
+- ['account.invoice.report', 'type', 'move_type', 'Search for the commit']
+- ['account.bank.statement.line', 'name', 'payment_ref', 'Search for the commit']
+- ['account.move.line', 'country_id', 'tax_fiscal_country_id', 'Search for the commit']
+- ['account.tax', 'country_id', 'tax_fiscal_country_id', 'Search for the commit']
+- ['account.tax.repartition.line', 'country_id', 'tax_fiscal_country_id', 'Search for the commit']
